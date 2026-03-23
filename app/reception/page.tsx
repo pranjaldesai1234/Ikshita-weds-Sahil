@@ -66,18 +66,23 @@ export default function WeddingInvite() {
     return () => clearInterval(id)
   }, [])
 
-  // ===== MUSIC =====
+  // ===== MUSIC — maximum autoplay =====
   const tryPlay = useCallback(() => {
     const audio = audioRef.current
-    if (!audio) return
+    if (!audio || musicStartedRef.current) return
     audio.volume = 0.4
     audio.play()
-      .then(() => setMusicOn(true))
+      .then(() => { setMusicOn(true); musicStartedRef.current = true })
       .catch(() => {})
   }, [])
 
+  const musicStartedRef = useRef(false)
+
   useEffect(() => {
-    // Cache audio via fetch API for faster subsequent loads
+    const audio = audioRef.current
+    if (!audio) return
+
+    // Cache audio
     if ('caches' in window) {
       caches.open('wedding-audio-v1').then(cache => {
         cache.match('/music/jashn-e-bahara.mp3').then(r => {
@@ -86,30 +91,60 @@ export default function WeddingInvite() {
       }).catch(() => {})
     }
 
-    // Try autoplay
-    tryPlay()
+    // Method 1: Try muted autoplay then unmute
+    audio.muted = true
+    audio.volume = 0
+    audio.play().then(() => {
+      // Muted play worked — try unmuting
+      setTimeout(() => {
+        audio.muted = false
+        audio.volume = 0.4
+        setMusicOn(true)
+        musicStartedRef.current = true
+      }, 50)
+    }).catch(() => {})
 
-    // AudioContext unlock
+    // Method 2: Direct play with sound
+    setTimeout(() => { if (!musicStartedRef.current) tryPlay() }, 200)
+
+    // Method 3: AudioContext unlock
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-      ctx.resume().then(() => setTimeout(tryPlay, 100))
+      const buf = ctx.createBuffer(1, 1, 22050)
+      const src = ctx.createBufferSource()
+      src.buffer = buf; src.connect(ctx.destination); src.start(0)
+      ctx.resume().then(() => { if (!musicStartedRef.current) setTimeout(tryPlay, 100) })
     } catch {}
 
-    // First interaction fallback
+    // Method 4: Retry every 500ms for 3 seconds
+    const retries = [500, 1000, 1500, 2000, 2500, 3000]
+    const timers = retries.map(ms => setTimeout(() => { if (!musicStartedRef.current) tryPlay() }, ms))
+
+    // Method 5: First interaction — catches ANY touch/scroll/click
     const unlock = () => {
-      tryPlay()
-      ;['touchstart','touchend','click','scroll','keydown'].forEach(e =>
-        document.removeEventListener(e, unlock)
-      )
+      if (!musicStartedRef.current) {
+        const a = audioRef.current
+        if (a) { a.muted = false; a.volume = 0.4 }
+        tryPlay()
+        // Double tap
+        setTimeout(tryPlay, 50)
+        setTimeout(tryPlay, 150)
+      }
+      events.forEach(e => document.removeEventListener(e, unlock))
+      events.forEach(e => window.removeEventListener(e, unlock))
     }
-    ;['touchstart','touchend','click','scroll','keydown'].forEach(e =>
-      document.addEventListener(e, unlock, { passive: true, once: false } as any)
-    )
+    const events = ['touchstart','touchend','touchmove','click','scroll','keydown','pointerdown','mousedown','wheel']
+    events.forEach(e => {
+      document.addEventListener(e, unlock, { passive: true })
+      window.addEventListener(e, unlock, { passive: true })
+    })
 
     return () => {
-      ;['touchstart','touchend','click','scroll','keydown'].forEach(e =>
+      timers.forEach(clearTimeout)
+      events.forEach(e => {
         document.removeEventListener(e, unlock)
-      )
+        window.removeEventListener(e, unlock)
+      })
     }
   }, [tryPlay])
 
