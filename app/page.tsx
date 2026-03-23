@@ -143,10 +143,10 @@ export default function WeddingInvite() {
       const t = PETAL_TYPES[curPetalsRef.current] || PETAL_TYPES.hearts
       return {
         x: Math.random() * cv.width, y: -20,
-        sp: Math.random() * 1.5 + .5, wb: Math.random() * 2.5 - 1.25,
+        sp: Math.random() * 1.2 + .4, wb: Math.random() * 2.0 - 1.0,
         wf: Math.random() * .03 + .01, sz: Math.random() * 16 + 14,
         em: t[Math.floor(Math.random() * t.length)],
-        rot: Math.random() * 360, rs: Math.random() * 3 - 1.5,
+        rot: Math.random() * 360, rs: Math.random() * 2.4 - 1.2,
         op: Math.random() * .4 + .35,
       }
     }
